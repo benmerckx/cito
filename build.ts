@@ -7,7 +7,5 @@ await build({
   format: 'esm',
   target: 'esnext',
   entryPoints: globSync(entryPoints),
-  outdir,
-  minify: true,
-  treeShaking: true
+  outdir
 })

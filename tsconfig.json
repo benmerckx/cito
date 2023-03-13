@@ -9,6 +9,8 @@
     "declaration": true,
     "emitDeclarationOnly": true,
     "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true
-  }
+    "esModuleInterop": true,
+    "outDir": "./dist"
+  },
+  "include": ["./src"]
 }

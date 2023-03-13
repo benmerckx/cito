@@ -1,125 +1,188 @@
-type Simplify<T> = T extends Object ? {[K in keyof T]: T[K]} : T
-type WithOptionalProps<T> = Simplify<
-  Partial<T> &
-    Pick<
-      T,
-      {
-        [K in keyof T]: T[K] extends Exclude<T[K], undefined> ? K : never
-      }[keyof T]
-    >
->
+const {setPrototypeOf, entries, assign} = Object
 
-export type Cast<T, Source = unknown> = (data: Source) => T
-export type Infer<Schema extends Cast<unknown>> = ReturnType<Schema>
-// Chainable API
-export interface Type<T> extends Cast<T> {
-  map: <E>(extra: Cast<E, T>) => Type<E>
-  or: <E>(extra: Cast<E>) => Type<E | T>
+class Context {
+  public p = ''
+  public e = ''
+  constructor(public v = undefined) {}
+  at(name: string) {
+    this.p += this.p ? `.${name}` : name
+    return this
+  }
+  index(index: number) {
+    this.p += `[${index}]`
+    return this
+  }
+  expect(e: any, v: any) {
+    this.v = v
+    this.e = e
+    return this
+  }
+  err() {
+    return `Expected ${this.e} @ ${this.p} (got: ${this.v})`
+  }
 }
 
-// Core
-export const type = <T>(cast: Cast<T>): Type<T> => {
-  ;(cast as Type<T>).map = extra => type(raw => extra(cast(raw)))
-  ;(cast as Type<T>).or = extra =>
-    type(raw => {
-      try {
-        return cast(raw)
-      } catch (err) {
-        return extra(raw)
-      }
-    })
-  return cast as Type<T>
+export interface Validator<T> {
+  (value: any, ctx: Context): value is T
 }
 
-// Error helper
-export const fail = () => ('bad banditype' as any)() as never
-
-export const never = () => type(() => fail())
-export const unknown = () => type(raw => raw)
-
-// literals
-// not sure why, but this signature prevents wideing [90] -> number[]
-type Primitive = string | number | null | undefined | boolean | symbol | object
-export const enums = <U extends Primitive, T extends readonly U[]>(items: T) =>
-  type(raw => (items.includes(raw as T[number]) ? (raw as T[number]) : fail()))
-
-// Basic types
-type Func = (...args: unknown[]) => unknown
-export interface Like {
-  (tag: string): Type<string>
-  (tag: number): Type<number>
-  (tag: boolean): Type<boolean>
-  (tag: bigint): Type<bigint>
-  (tag: Func): Type<Func>
-  (tag: symbol): Type<symbol>
-  (): Type<undefined>
+export interface Cito<T> {
+  (value: any): value is T
 }
-export const like = ((tag: unknown) =>
-  type(raw => (typeof raw === typeof tag ? raw : fail()))) as Like
-export const string = () => like('')
-export const number = () => like(0)
-export const boolean = () => like(true)
-export const func = () => like(fail)
-export const optional = () => like()
-export const nullable = () => type(raw => (raw === null ? raw : fail()))
 
-// Classes
-export const instance = <T>(proto: new (...args: Array<any>) => T) =>
-  type(raw => (raw instanceof proto ? (raw as T) : fail()))
+export class Cito<T = unknown> {
+  declare infer: T & {}
+  declare validate: Validator<T>
 
-// objects
-export const record = <Item>(
-  castValue: Cast<Item>
-): Type<Record<string, Item>> =>
-  instance(Object).map((raw: any) => {
-    const res: Record<string, Item> = {}
-    for (const key in raw) {
-      const f = castValue(raw[key])
-      f !== undefined && (res[key] = f)
+  constructor(validate: Validator<T>) {
+    return assign(
+      setPrototypeOf(
+        (value: any, ctx = new Context(value)) => validate(value, ctx),
+        new.target.prototype
+      ),
+      {validate}
+    )
+  }
+
+  make<C extends (...args: Array<any>) => T>(create: C): this {
+    return this
+  }
+
+  narrow<E extends T>(): Cito<E> {
+    return this as any
+  }
+
+  new(input: T): T {
+    return input
+  }
+
+  assert(input: unknown): asserts input is T {
+    const ctx = new Context()
+    if (!this.validate(input, ctx)) throw new TypeError(ctx.err())
+  }
+
+  and<E = T>(validate: Validator<E>): Cito<E> {
+    return new Cito(
+      (value, ctx): value is E =>
+        this.validate(value, ctx) && validate(value, ctx)
+    )
+  }
+
+  or<E = T>(validate: Validator<E>): Cito<E> {
+    return new Cito(
+      (value, ctx): value is E =>
+        this.validate(value, ctx) || validate(value, ctx)
+    )
+  }
+
+  get nullable(): Cito<T | null> {
+    return nullable(this)
+  }
+
+  get optional(): Cito<T | undefined> {
+    return optional(this)
+  }
+}
+
+export const literal = <
+  T extends null | undefined | string | number | boolean | symbol
+>(
+  value: T
+) => new Cito<T>((v): v is T => v === value)
+
+export const nullable = <T>(inner: Cito<T>) => inner.or<T | null>(literal(null))
+export const optional = <T>(inner: Cito<T>) =>
+  inner.or<T | undefined>(literal(undefined))
+
+const primitive = <T>(primitive: string) =>
+  new Cito(
+    (value, ctx): value is T => (
+      ctx.expect(primitive, value), typeof value === primitive
+    )
+  )
+
+export const instance = <T>(constructor: new (...args: any[]) => T) =>
+  new Cito(
+    (value, ctx): value is T => (
+      ctx.expect(constructor, value), value instanceof constructor
+    )
+  )
+
+export const string = primitive<string>('string')
+export const number = primitive<number>('number')
+export const bigint = primitive<bigint>('bigint')
+export const boolean = primitive<boolean>('boolean')
+export const symbol = primitive<symbol>('symbol')
+export const date = instance<Date>(Date).and(
+  (v): v is Date => !isNaN(v.getTime())
+)
+export const any = new Cito((value): value is any => true)
+
+export const record = <T>(inner: Cito<T>) =>
+  instance(Object).and((value, ctx): value is Record<string, T> => {
+    for (const [key, item] of entries(value))
+      if (!inner.validate(item, ctx.at(key))) return false
+    return true
+  })
+
+type Object<T> = {
+  [K in keyof T as T[K] extends Cito<any> ? K : never]: T[K] extends Cito<
+    infer U
+  >
+    ? U
+    : never
+}
+export const object = <T extends object>(
+  definition: T | (new (...args: Array<any>) => T)
+) =>
+  instance(Object).and((value, ctx): value is Object<T> => {
+    const inst: any =
+      typeof definition === 'function' ? new definition() : definition
+    for (const key in inst) {
+      if (!inst[key].validate(value[key], ctx.at(key))) return false
     }
-    return res
+    return true
   })
 
-export const object = <T = Record<string, never>>(schema: {
-  [K in keyof T]-?: Cast<T[K]>
-}) =>
-  instance(Object).map((raw: any) => {
-    const res = {} as T
-    for (const key in schema) {
-      const f = schema[key](raw[key])
-      f !== undefined && (res[key] = f)
-    }
-    return res as WithOptionalProps<T>
-  })
-export const objectLoose = <
-  T extends Record<string, unknown> = Record<string, never>
->(schema: {
-  [K in keyof T]-?: Cast<T[K]>
-}) =>
-  instance(Object).map((raw: any) => {
-    const res = {...raw}
-    for (const key in schema) {
-      const f = schema[key](raw[key])
-      f !== undefined && (res[key] = f)
-    }
-    return res as WithOptionalProps<T>
+type Union<T extends Array<any>> = {
+  [K in keyof T]: T[K] extends Cito<infer U>
+    ? U
+    : T[K] extends new (...args: Array<any>) => infer U
+    ? Object<U>
+    : never
+}[number]
+export const union = <T extends Array<any>>(...types: T) =>
+  new Cito((value, ctx): value is Union<T> => {
+    for (const [key, type] of entries(types))
+      if (type.validate(value, ctx.at(key))) return true
+    ctx.expect(types, value)
+    return false
   })
 
-// arrays
-export const array = <Item>(castItem: Cast<Item>) =>
-  instance(Array).map(arr => arr.map(castItem))
-export const tuple = <T extends readonly Cast<unknown>[]>(schema: T) =>
-  instance(Array).map(arr => {
-    return schema.map((cast, i) => cast(arr[i])) as {
-      -readonly [K in keyof T]: Infer<T[K]>
-    }
+export const array = <T>(inner: Cito<T>) =>
+  new Cito((value, ctx): value is Array<T> => {
+    ctx.expect(Array, value)
+    if (!Array.isArray(value)) return false
+    for (const [i, item] of value.entries())
+      if (!inner.validate(item, ctx.index(i))) return false
+    return true
   })
 
-export const set = <T>(castItem: Cast<T>) =>
-  instance(Set).map(set => new Set<T>([...set].map(castItem)))
-export const map = <K, V>(castKey: Cast<K>, castValue: Cast<V>) =>
-  instance(Map).map(map => {
-    return new Map<K, V>([...map].map(([k, v]) => [castKey(k), castValue(v)]))
-  })
+export const enums = <T extends Record<string, any>>(types: T) =>
+  new Cito(
+    (value, ctx): value is keyof T => (
+      ctx.expect(types, value), (value as any) in types
+    )
+  )
 
-export const lazy = <T>(cast: () => Cast<T>) => type(raw => cast()(raw))
+export const lazy = <T>(
+  fn: () => Cito<T>,
+  inst: Validator<T> | undefined = undefined
+) =>
+  new Cito((value, ctx): value is T =>
+    inst ? inst(value, ctx) : (inst = fn().validate)(value, ctx)
+  )
+
+export function assert<T>(value: unknown, type: Cito<T>): asserts value is T {
+  type.assert(value)
+}
