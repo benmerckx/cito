@@ -1,0 +1,14 @@
+{
+  "name": "cito",
+  "type": "module",
+  "packageManager": "yarn@3.4.1",
+  "scripts": {
+    "build": "tsx build.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^18.15.1",
+    "esbuild": "^0.17.11",
+    "glob": "^9.2.1",
+    "tsx": "^3.12.5"
+  }
+}
