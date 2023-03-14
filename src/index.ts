@@ -26,29 +26,45 @@ export interface Validator<T> {
   (value: any): value is T
 }
 
-export interface Type<T> extends Validator<T> {}
+export interface Type<T> {
+  (value: any): T
+}
+
+export namespace Type {
+  export type New<T> = T extends object
+    ? {
+        [K in keyof T as undefined extends T[K] ? K : never]?: New<T[K]>
+      } & {
+        [K in keyof T as undefined extends T[K] ? never : K]: New<T[K]>
+      }
+    : T
+}
 
 export class Type<T> {
-  declare infer: T & {}
+  declare infer: T
   declare validate: Validator<T>
 
   narrow = <E extends T>(): Type<E> => this as any
 
-  new(input: T): T {
-    this.assert(input)
-    return input
+  new(value: Type.New<T>): T {
+    return value as T
+  }
+
+  is(input: unknown): input is T {
+    init()
+    return this.validate(input)
   }
 
   assert(input: unknown): asserts input is T {
-    if (!this(input)) throw new TypeError(err())
+    if (!this.is(input)) throw new TypeError(err())
   }
 
   and<E = T>(validate: Validator<E>): Type<E> {
-    return type((value): value is E => this(value) && validate(value))
+    return type((value): value is E => this.validate(value) && validate(value))
   }
 
   or<E = T>(validate: Validator<E>): Type<E> {
-    return type((value): value is E => this(value) || validate(value))
+    return type((value): value is E => this.validate(value) || validate(value))
   }
 
   get nullable(): Type<T | null> {
@@ -61,10 +77,12 @@ export class Type<T> {
 }
 
 export function type<T>(validate: Validator<T>): Type<T> {
-  return assign(
-    setPrototypeOf((value: any) => (init(), validate(value)), Type.prototype),
-    {validate}
-  )
+  let inst: any = (value: any) => {
+    inst.assert(value)
+    return value
+  }
+  inst.validate = validate
+  return setPrototypeOf(inst, Type.prototype)
 }
 
 export let literal = <
@@ -73,9 +91,10 @@ export let literal = <
   value: T
 ) => type<T>((v): v is T => (expect(value, v), v === value))
 
-export let nullable = <T>(inner: Type<T>) => inner.or<T | null>(literal(null))
-export let optional = <T>(inner: Type<T>) =>
-  inner.or<T | undefined>(literal(undefined))
+export let nullable = <T>(inner: Type<T>): Type<T | null> =>
+  literal(null).or(inner.validate)
+export let optional = <T>(inner: Type<T>): Type<T | undefined> =>
+  literal(undefined).or(inner.validate)
 
 let primitive = <T>(primitive: string) =>
   type(
@@ -130,18 +149,16 @@ export let record = <T>(inner: Type<T>) =>
     return true
   })
 
+let def = Symbol()
 export type obj<T> = {
-  [K in keyof T as T[K] extends Type<any> ? K : never]: T[K] extends Type<
-    infer U
-  >
-    ? U
-    : never
-}
+  [K in keyof T]: T[K] extends Type<infer U> ? U : never
+} & {}
 export let object = <T extends object>(
   definition: T | (new (...args: Array<any>) => T)
 ) =>
   obj.and((value): value is obj<T> => {
-    let inst: any = func(definition) ? new definition() : definition
+    let inst: any = definition
+    if (func.is(inst)) inst = inst[def] || (inst[def] = new inst())
     for (let key in inst) {
       at(key)
       if (!(inst[key] as Type<any>).validate(value[key])) return false
@@ -201,5 +218,5 @@ export function assert<T>(value: unknown, type: Type<T>): asserts value is T {
 }
 
 export function is<T>(value: unknown, type: Type<T>): value is T {
-  return type(value)
+  return type.is(value)
 }
