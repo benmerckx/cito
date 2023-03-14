@@ -45,7 +45,7 @@ const post = Post(data)
 ## Recursive types
 
 Object types can be declared using a class, which enables you to declare
-recursive types with full type inference without having to resort manual type
+recursive types with full type inference without having to resort to manual type
 definition.
 
 ```ts
