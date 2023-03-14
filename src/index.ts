@@ -59,12 +59,16 @@ export class Type<T> {
     if (!this.is(input)) throw new TypeError(err())
   }
 
-  and<E = T>(validate: Validator<E>): Type<E> {
-    return type((value): value is E => this.validate(value) && validate(value))
+  and<E>(validate: Validator<E>): Type<T & E> {
+    return type(
+      (value): value is T & E => this.validate(value) && validate(value)
+    )
   }
 
-  or<E = T>(validate: Validator<E>): Type<E> {
-    return type((value): value is E => this.validate(value) || validate(value))
+  or<E>(validate: Validator<E>): Type<T | E> {
+    return type(
+      (value): value is T | E => this.validate(value) || validate(value)
+    )
   }
 
   get nullable(): Type<T | null> {
@@ -91,9 +95,8 @@ export let literal = <
   value: T
 ) => type<T>((v): v is T => (expect(value, v), v === value))
 
-export let nullable = <T>(inner: Type<T>): Type<T | null> =>
-  literal(null).or(inner.validate)
-export let optional = <T>(inner: Type<T>): Type<T | undefined> =>
+export let nullable = <T>(inner: Type<T>) => literal(null).or(inner.validate)
+export let optional = <T>(inner: Type<T>) =>
   literal(undefined).or(inner.validate)
 
 let primitive = <T>(primitive: string) =>
@@ -139,7 +142,7 @@ export let tuple = <T extends Array<Type<any>>>(...types: T) =>
     }
   )
 
-export let record = <T>(inner: Type<T>) =>
+export let record = <T>(inner: Type<T>): Type<Record<string, T>> =>
   obj.and((value): value is Record<string, T> => {
     for (let [key, item] of entries(value)) {
       at(key)
@@ -155,7 +158,7 @@ export type obj<T> = {
 } & {}
 export let object = <T extends object>(
   definition: T | (new (...args: Array<any>) => T)
-) =>
+): Type<obj<T>> =>
   obj.and((value): value is obj<T> => {
     let inst: any = definition
     if (func.is(inst)) inst = inst[def] || (inst[def] = new inst())

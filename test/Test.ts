@@ -154,4 +154,11 @@ test('recursive', () => {
   assert.not.ok(List.is({head: {data: 123}}))
 })
 
+test('custom type', () => {
+  const regex = type.type((value): value is RegExp => value instanceof RegExp)
+
+  regex(/(.*?)/g)
+  assert.throws(() => regex('this will throw'))
+})
+
 test.run()

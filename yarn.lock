@@ -364,9 +364,12 @@ __metadata:
     "@types/node": ^18.15.1
     esbuild: ^0.17.11
     glob: ^9.2.1
+    mitata: ^0.1.6
+    superstruct: ^1.0.3
     tsx: ^3.12.5
     typescript: ^4.9.5
     uvu: ^0.5.6
+    zod: ^3.21.4
   languageName: unknown
   linkType: soft
 
@@ -921,6 +924,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"mitata@npm:^0.1.6":
+  version: 0.1.6
+  resolution: "mitata@npm:0.1.6"
+  checksum: fe64e22ae17bfb748a0d71b2ecf1f64da09c633520c819ac409018a49843adfd9817612a152651e5f1fa080f227fc382e0cdbb92a11e2f69f3cc9f843ba7d603
+  languageName: node
+  linkType: hard
+
 "mkdirp@npm:^1.0.3, mkdirp@npm:^1.0.4":
   version: 1.0.4
   resolution: "mkdirp@npm:1.0.4"
@@ -1213,6 +1223,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"superstruct@npm:^1.0.3":
+  version: 1.0.3
+  resolution: "superstruct@npm:1.0.3"
+  checksum: 761790bb111e6e21ddd608299c252f3be35df543263a7ebbc004e840d01fcf8046794c274bcb351bdf3eae4600f79d317d085cdbb19ca05803a4361840cc9bb1
+  languageName: node
+  linkType: hard
+
 "tar@npm:^6.1.11, tar@npm:^6.1.2":
   version: 6.1.13
   resolution: "tar@npm:6.1.13"
@@ -1334,5 +1351,12 @@ __metadata:
   version: 4.0.0
   resolution: "yallist@npm:4.0.0"
   checksum: 343617202af32df2a15a3be36a5a8c0c8545208f3d3dfbc6bb7c3e3b7e8c6f8e7485432e4f3b88da3031a6e20afa7c711eded32ddfb122896ac5d914e75848d5
+  languageName: node
+  linkType: hard
+
+"zod@npm:^3.21.4":
+  version: 3.21.4
+  resolution: "zod@npm:3.21.4"
+  checksum: f185ba87342ff16f7a06686767c2b2a7af41110c7edf7c1974095d8db7a73792696bcb4a00853de0d2edeb34a5b2ea6a55871bc864227dace682a0a28de33e1f
   languageName: node
   linkType: hard
