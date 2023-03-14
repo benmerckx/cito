@@ -1,15 +1,13 @@
 # cito
 
-Check types at runtime (<1kb)
+Check types at runtime
 
-- Small: 1/4 of superstruct, 1/15 of zod
+- Small (<1kb): 1/4 of superstruct, 1/15 of zod
 - Support recursive type declarations
 - Descriptive error messages
 - Full TypeScript support
 
-```sh
-npm install cito
-```
+<pre>npm install <a href="https://www.npmjs.com/package/cito">cito</a></pre>
 
 ## Usage
 
