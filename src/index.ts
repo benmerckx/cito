@@ -3,32 +3,22 @@ let {setPrototypeOf, entries, assign, keys} = Object
 // Context: keep a path and the current value around to produce
 // proper error messages
 let value: any = undefined
-let path = ''
+let path: Array<string> = []
 let expected = ''
 let init = () => {
   value = undefined
-  path = ''
+  path = []
   expected = ''
 }
-let at = (name: string) => {
-  let add = path ? `.${name}` : name
-  path += add
-  return add.length
-}
-let index = (index: number) => {
-  let add = `[${index}]`
-  path += add
-  return add.length
-}
-let back = (amount: number) => {
-  path = path.slice(0, -amount)
-}
+let at = (name: string) => path.push(path.length > 0 ? `.${name}` : name)
+let index = (index: number) => path.push(`[${index}]`)
+let back = () => path.pop()
 let expect = (e: any, v: any) => {
   value = v
   expected = e
 }
 let err = () => {
-  let at = path ? `@ ${path} ` : ''
+  let at = path.length ? `@ ${path.join('')} ` : ''
   return `Expected ${expected} ${at}(got: ${JSON.stringify(value)})`
 }
 
@@ -122,9 +112,9 @@ export let tuple = <T extends Array<Type<any>>>(...types: T) =>
     } => {
       if (value.length !== types.length) return false
       for (let [i, type] of types.entries()) {
-        let chars = index(i)
+        index(i)
         if (!type.validate(value[i])) return false
-        back(chars)
+        back()
       }
       return true
     }
@@ -133,9 +123,9 @@ export let tuple = <T extends Array<Type<any>>>(...types: T) =>
 export let record = <T>(inner: Type<T>) =>
   obj.and((value): value is Record<string, T> => {
     for (let [key, item] of entries(value)) {
-      let chars = at(key)
+      at(key)
       if (!inner.validate(item)) return false
-      back(chars)
+      back()
     }
     return true
   })
@@ -153,9 +143,9 @@ export let object = <T extends object>(
   obj.and((value): value is obj<T> => {
     let inst: any = func(definition) ? new definition() : definition
     for (let key in inst) {
-      let chars = at(key)
+      at(key)
       if (!(inst[key] as Type<any>).validate(value[key])) return false
-      back(chars)
+      back()
     }
     return true
   })
@@ -184,9 +174,9 @@ export let union = <T extends Array<any>>(...types: T) => {
 export let array = <T>(inner: Type<T>) =>
   instance(Array).and((value): value is Array<T> => {
     for (let [i, item] of value.entries()) {
-      let chars = index(i)
+      index(i)
       if (!inner.validate(item)) return false
-      back(chars)
+      back()
     }
     return true
   })
