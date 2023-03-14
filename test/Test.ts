@@ -2,6 +2,38 @@ import {test} from 'uvu'
 import * as assert from 'uvu/assert'
 import * as type from '../src/index.js'
 
+type Expr = typeof Expr.union.infer
+namespace Expr {
+  class none {
+    type = type.literal('none')
+  }
+  class unop {
+    type = type.literal('unop')
+    expr = union
+  }
+  class binop {
+    type = type.literal('binop')
+    left = union
+    right = union
+  }
+  export const union = type.union(none, unop, binop)
+  export const None = () => ({type: 'none'} as const)
+  export const UnOp = (expr: Expr) => ({type: 'unop', expr})
+  export const BinOp = (left: Expr, right: Expr) => ({
+    type: 'binop',
+    left,
+    right
+  })
+}
+
+test('recursive adt', () => {
+  const expr = Expr.union
+  assert.ok(expr(Expr.None()))
+  assert.ok(expr(Expr.UnOp(Expr.None())))
+  assert.ok(expr(Expr.BinOp(Expr.None(), Expr.None())))
+  assert.not.ok(expr(Expr.BinOp(Expr.None(), 123 as any)))
+})
+
 test('primitives', () => {
   assert.ok(type.string('hello'))
   assert.not.ok(type.string(123))
@@ -73,6 +105,12 @@ test('path', () => {
   assert.throws(() => {
     type.assert({sub: [{inner: 123}]}, obj)
   }, 'Expected string @ sub[0].inner')
+})
+
+test('nullable', () => {
+  assert.ok(type.string.nullable(null))
+  assert.ok(type.nullable(type.string)('hello'))
+  assert.not.ok(type.nullable(type.string)(123))
 })
 
 test.run()

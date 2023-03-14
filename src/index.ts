@@ -1,188 +1,194 @@
-const {setPrototypeOf, entries, assign} = Object
+let {setPrototypeOf, entries, assign, keys} = Object
 
-class Context {
-  public p = ''
-  public e = ''
-  constructor(public v = undefined) {}
-  at(name: string) {
-    this.p += this.p ? `.${name}` : name
-    return this
-  }
-  index(index: number) {
-    this.p += `[${index}]`
-    return this
-  }
-  expect(e: any, v: any) {
-    this.v = v
-    this.e = e
-    return this
-  }
-  err() {
-    return `Expected ${this.e} @ ${this.p} (got: ${this.v})`
-  }
+// Context: keep a path and the current value around to produce
+// proper error messages
+let value: any = undefined
+let path = ''
+let expected = ''
+let init = () => {
+  value = undefined
+  path = ''
+  expected = ''
+}
+let at = (name: string) => {
+  let add = path ? `.${name}` : name
+  path += add
+  return add.length
+}
+let index = (index: number) => {
+  let add = `[${index}]`
+  path += add
+  return add.length
+}
+let back = (amount: number) => {
+  path = path.slice(0, -amount)
+}
+let expect = (e: any, v: any) => {
+  value = v
+  expected = e
+}
+let err = () => {
+  let at = path ? `@ ${path} ` : ''
+  return `Expected ${expected} ${at}(got: ${JSON.stringify(value)})`
 }
 
 export interface Validator<T> {
-  (value: any, ctx: Context): value is T
-}
-
-export interface Cito<T> {
   (value: any): value is T
 }
 
-export class Cito<T = unknown> {
+export interface Type<T> extends Validator<T> {}
+
+export class Type<T> {
   declare infer: T & {}
   declare validate: Validator<T>
 
-  constructor(validate: Validator<T>) {
-    return assign(
-      setPrototypeOf(
-        (value: any, ctx = new Context(value)) => validate(value, ctx),
-        new.target.prototype
-      ),
-      {validate}
-    )
-  }
-
-  make<C extends (...args: Array<any>) => T>(create: C): this {
-    return this
-  }
-
-  narrow<E extends T>(): Cito<E> {
-    return this as any
-  }
+  narrow = <E extends T>(): Type<E> => this as any
 
   new(input: T): T {
+    this.assert(input)
     return input
   }
 
   assert(input: unknown): asserts input is T {
-    const ctx = new Context()
-    if (!this.validate(input, ctx)) throw new TypeError(ctx.err())
+    if (!this(input)) throw new TypeError(err())
   }
 
-  and<E = T>(validate: Validator<E>): Cito<E> {
-    return new Cito(
-      (value, ctx): value is E =>
-        this.validate(value, ctx) && validate(value, ctx)
-    )
+  and<E = T>(validate: Validator<E>): Type<E> {
+    return type((value): value is E => this(value) && validate(value))
   }
 
-  or<E = T>(validate: Validator<E>): Cito<E> {
-    return new Cito(
-      (value, ctx): value is E =>
-        this.validate(value, ctx) || validate(value, ctx)
-    )
+  or<E = T>(validate: Validator<E>): Type<E> {
+    return type((value): value is E => this(value) || validate(value))
   }
 
-  get nullable(): Cito<T | null> {
+  get nullable(): Type<T | null> {
     return nullable(this)
   }
 
-  get optional(): Cito<T | undefined> {
+  get optional(): Type<T | undefined> {
     return optional(this)
   }
 }
 
-export const literal = <
+export function type<T>(validate: Validator<T>): Type<T> {
+  return assign(
+    setPrototypeOf((value: any) => (init(), validate(value)), Type.prototype),
+    {validate}
+  )
+}
+
+export let literal = <
   T extends null | undefined | string | number | boolean | symbol
 >(
   value: T
-) => new Cito<T>((v): v is T => v === value)
+) => type<T>((v): v is T => (expect(value, v), v === value))
 
-export const nullable = <T>(inner: Cito<T>) => inner.or<T | null>(literal(null))
-export const optional = <T>(inner: Cito<T>) =>
+export let nullable = <T>(inner: Type<T>) => inner.or<T | null>(literal(null))
+export let optional = <T>(inner: Type<T>) =>
   inner.or<T | undefined>(literal(undefined))
 
-const primitive = <T>(primitive: string) =>
-  new Cito(
-    (value, ctx): value is T => (
-      ctx.expect(primitive, value), typeof value === primitive
+let primitive = <T>(primitive: string) =>
+  type(
+    (value): value is T => (
+      expect(primitive, value), typeof value === primitive
     )
   )
 
-export const instance = <T>(constructor: new (...args: any[]) => T) =>
-  new Cito(
-    (value, ctx): value is T => (
-      ctx.expect(constructor, value), value instanceof constructor
+export let instance = <T>(constructor: new (...args: any[]) => T) =>
+  type(
+    (value): value is T => (
+      expect(constructor.name, value), value instanceof constructor
     )
   )
 
-export const string = primitive<string>('string')
-export const number = primitive<number>('number')
-export const bigint = primitive<bigint>('bigint')
-export const boolean = primitive<boolean>('boolean')
-export const symbol = primitive<symbol>('symbol')
-export const date = instance<Date>(Date).and(
+export let string = primitive<string>('string')
+export let number = primitive<number>('number')
+export let bigint = primitive<bigint>('bigint')
+export let boolean = primitive<boolean>('boolean')
+export let symbol = primitive<symbol>('symbol')
+export let date = instance<Date>(Date).and(
   (v): v is Date => !isNaN(v.getTime())
 )
-export const any = new Cito((value): value is any => true)
+export let any = type((value): value is any => true)
+export let func = instance<Function>(Function)
+let obj = instance<Object>(Object)
 
-export const record = <T>(inner: Cito<T>) =>
-  instance(Object).and((value, ctx): value is Record<string, T> => {
-    for (const [key, item] of entries(value))
-      if (!inner.validate(item, ctx.at(key))) return false
+export let record = <T>(inner: Type<T>) =>
+  obj.and((value): value is Record<string, T> => {
+    for (let [key, item] of entries(value)) {
+      let chars = at(key)
+      if (!inner.validate(item)) return false
+      back(chars)
+    }
     return true
   })
 
-type Object<T> = {
-  [K in keyof T as T[K] extends Cito<any> ? K : never]: T[K] extends Cito<
+type obj<T> = {
+  [K in keyof T as T[K] extends Type<any> ? K : never]: T[K] extends Type<
     infer U
   >
     ? U
     : never
 }
-export const object = <T extends object>(
+export let object = <T extends object>(
   definition: T | (new (...args: Array<any>) => T)
 ) =>
-  instance(Object).and((value, ctx): value is Object<T> => {
-    const inst: any =
-      typeof definition === 'function' ? new definition() : definition
-    for (const key in inst) {
-      if (!inst[key].validate(value[key], ctx.at(key))) return false
+  obj.and((value): value is obj<T> => {
+    let inst: any = func(definition) ? new definition() : definition
+    for (let key in inst) {
+      let chars = at(key)
+      if (!(inst[key] as Type<any>).validate(value[key])) return false
+      back(chars)
     }
     return true
   })
 
-type Union<T extends Array<any>> = {
-  [K in keyof T]: T[K] extends Cito<infer U>
+type union<T extends Array<any>> = {
+  [K in keyof T]: T[K] extends Type<infer U>
     ? U
     : T[K] extends new (...args: Array<any>) => infer U
-    ? Object<U>
+    ? obj<U>
     : never
 }[number]
-export const union = <T extends Array<any>>(...types: T) =>
-  new Cito((value, ctx): value is Union<T> => {
-    for (const [key, type] of entries(types))
-      if (type.validate(value, ctx.at(key))) return true
-    ctx.expect(types, value)
+export let union = <T extends Array<any>>(...types: T) => {
+  let definitions = types.map(type =>
+    type instanceof Type ? type : object(type)
+  )
+  return type((value): value is union<T> => {
+    let current = path
+    for (let type of definitions) {
+      path = current
+      if (type.validate(value)) return true
+    }
     return false
   })
+}
 
-export const array = <T>(inner: Cito<T>) =>
-  new Cito((value, ctx): value is Array<T> => {
-    ctx.expect(Array, value)
-    if (!Array.isArray(value)) return false
-    for (const [i, item] of value.entries())
-      if (!inner.validate(item, ctx.index(i))) return false
+export let array = <T>(inner: Type<T>) =>
+  instance(Array).and((value): value is Array<T> => {
+    for (let [i, item] of value.entries()) {
+      let chars = index(i)
+      if (!inner.validate(item)) return false
+      back(chars)
+    }
     return true
   })
 
-export const enums = <T extends Record<string, any>>(types: T) =>
-  new Cito(
-    (value, ctx): value is keyof T => (
-      ctx.expect(types, value), (value as any) in types
+export let enums = <T extends Record<string, any>>(types: T) =>
+  type(
+    (value): value is keyof T => (
+      expect(keys(types).join(' | '), value), (value as any) in types
     )
   )
 
-export const lazy = <T>(
-  fn: () => Cito<T>,
+export let lazy = <T>(
+  fn: () => Type<T>,
   inst: Validator<T> | undefined = undefined
 ) =>
-  new Cito((value, ctx): value is T =>
-    inst ? inst(value, ctx) : (inst = fn().validate)(value, ctx)
+  type((value): value is T =>
+    inst ? inst(value) : (inst = fn().validate)(value)
   )
 
-export function assert<T>(value: unknown, type: Cito<T>): asserts value is T {
+export function assert<T>(value: unknown, type: Type<T>): asserts value is T {
   type.assert(value)
 }
