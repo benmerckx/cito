@@ -113,6 +113,23 @@ export let any = type((value): value is any => true)
 export let func = instance<Function>(Function)
 let obj = instance<Object>(Object)
 
+export let tuple = <T extends Array<Type<any>>>(...types: T) =>
+  instance(Array).and(
+    (
+      value
+    ): value is {
+      [K in keyof T]: T[K] extends Type<infer U> ? U : never
+    } => {
+      if (value.length !== types.length) return false
+      for (let [i, type] of types.entries()) {
+        let chars = index(i)
+        if (!type.validate(value[i])) return false
+        back(chars)
+      }
+      return true
+    }
+  )
+
 export let record = <T>(inner: Type<T>) =>
   obj.and((value): value is Record<string, T> => {
     for (let [key, item] of entries(value)) {

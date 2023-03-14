@@ -113,4 +113,21 @@ test('nullable', () => {
   assert.not.ok(type.nullable(type.string)(123))
 })
 
+test('optional', () => {
+  assert.ok(type.string.optional(undefined))
+  assert.ok(type.optional(type.string)('hello'))
+  assert.not.ok(type.optional(type.string)(123))
+})
+
+test('literal', () => {
+  assert.ok(type.literal('hello')('hello'))
+  assert.not.ok(type.literal('hello')('world'))
+})
+
+test('tuples', () => {
+  const tuple = type.tuple(type.string, type.number)
+  assert.ok(tuple(['hello', 123]))
+  assert.not.ok(tuple(['hello', 'world']))
+})
+
 test.run()
