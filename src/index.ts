@@ -123,7 +123,7 @@ export let record = <T>(inner: Type<T>) =>
     return true
   })
 
-type obj<T> = {
+export type obj<T> = {
   [K in keyof T as T[K] extends Type<any> ? K : never]: T[K] extends Type<
     infer U
   >
@@ -143,7 +143,7 @@ export let object = <T extends object>(
     return true
   })
 
-type union<T extends Array<any>> = {
+export type union<T extends Array<any>> = {
   [K in keyof T]: T[K] extends Type<infer U>
     ? U
     : T[K] extends new (...args: Array<any>) => infer U
@@ -191,4 +191,8 @@ export let lazy = <T>(
 
 export function assert<T>(value: unknown, type: Type<T>): asserts value is T {
   type.assert(value)
+}
+
+export function is<T>(value: unknown, type: Type<T>): value is T {
+  return type(value)
 }
