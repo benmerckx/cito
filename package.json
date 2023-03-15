@@ -9,11 +9,12 @@
     "dist"
   ],
   "scripts": {
-    "bench": "yarn prepare && node bench/index.js",
+    "bench": "tsx build.ts && node bench/index.js",
     "prepare": "tsc && tsx build.ts",
     "test": "tsx test/Test.ts"
   },
   "devDependencies": {
+    "@sinclair/typebox": "^0.25.24",
     "@types/node": "^18.15.1",
     "esbuild": "^0.17.11",
     "glob": "^9.2.1",

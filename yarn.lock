@@ -216,6 +216,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@sinclair/typebox@npm:^0.25.24":
+  version: 0.25.24
+  resolution: "@sinclair/typebox@npm:0.25.24"
+  checksum: 10219c58f40b8414c50b483b0550445e9710d4fe7b2c4dccb9b66533dd90ba8e024acc776026cebe81e87f06fa24b07fdd7bc30dd277eb9cc386ec50151a3026
+  languageName: node
+  linkType: hard
+
 "@tootallnate/once@npm:2":
   version: 2.0.0
   resolution: "@tootallnate/once@npm:2.0.0"
@@ -361,6 +368,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "cito@workspace:."
   dependencies:
+    "@sinclair/typebox": ^0.25.24
     "@types/node": ^18.15.1
     esbuild: ^0.17.11
     glob: ^9.2.1

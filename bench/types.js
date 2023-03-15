@@ -1,3 +1,4 @@
+import {Type as T} from '@sinclair/typebox'
 import * as S from 'superstruct'
 import {z as Z} from 'zod'
 import * as C from '../dist/index.js'
@@ -43,6 +44,54 @@ export const cito = C.object({
             name: C.string,
             home_port: C.string,
             image: C.string
+          })
+        )
+      })
+    )
+  })
+})
+
+export const typebox = T.Object({
+  data: T.Object({
+    launchesPast: T.Array(
+      T.Object({
+        mission_name: T.String(),
+        launch_date_local: T.String(),
+        launch_site: T.Object({
+          site_name_long: T.String()
+        }),
+        links: T.Object({
+          article_link: T.Union([T.Null(), T.String()]),
+          video_link: T.String()
+        }),
+        rocket: T.Object({
+          rocket_name: T.String(),
+          first_stage: T.Object({
+            cores: T.Array(
+              T.Object({
+                flight: T.Number(),
+                core: T.Object({
+                  reuse_count: T.Number(),
+                  status: T.Union([T.Null(), T.String()])
+                })
+              })
+            )
+          }),
+          second_stage: T.Object({
+            payloads: T.Array(
+              T.Object({
+                payload_type: T.String(),
+                payload_mass_kg: T.Union([T.Null(), T.Number()]),
+                payload_mass_lbs: T.Union([T.Null(), T.Number()])
+              })
+            )
+          })
+        }),
+        ships: T.Array(
+          T.Object({
+            name: T.String(),
+            home_port: T.String(),
+            image: T.String()
           })
         )
       })

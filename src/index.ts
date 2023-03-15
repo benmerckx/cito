@@ -1,73 +1,108 @@
-let {setPrototypeOf, entries, assign, keys} = Object
+let {assign, entries, keys, setPrototypeOf} = Object
+let {stringify} = JSON
 
-// Context: keep a path and the current value around to produce
-// proper error messages
-let value: any = undefined
-let path: Array<string> = []
-let expected = ''
-let init = () => {
-  value = undefined
-  path = []
+class Context {
+  value: any = undefined
+  path: Array<string> = []
   expected = ''
+  at(name: string) {
+    this.path.push(this.path.length > 0 ? `.${name}` : name)
+  }
+  index(index: number) {
+    this.path.push(`[${index}]`)
+  }
+  back() {
+    this.path.pop()
+  }
+  expect(e: any, v: any) {
+    this.value = v
+    this.expected = e
+  }
+  err() {
+    let at = this.path.length ? `@ ${this.path.join('')} ` : ''
+    return `Expected ${this.expected} ${at}(got: ${stringify(this.value)})`
+  }
 }
-let at = (name: string) => path.push(path.length > 0 ? `.${name}` : name)
-let index = (index: number) => path.push(`[${index}]`)
-let back = () => path.pop()
-let expect = (e: any, v: any) => {
-  value = v
-  expected = e
-}
-let err = () => {
-  let at = path.length ? `@ ${path.join('')} ` : ''
-  return `Expected ${expected} ${at}(got: ${JSON.stringify(value)})`
-}
+
+let arg = 'v'
+let ctx = new Context()
 
 export interface Validator<T> {
-  (value: any): value is T
+  (value: any, ctx: Context): value is T
+}
+
+export namespace Type {
+  type obj<T> = {
+    [K in keyof T]: T[K] extends Type<infer U> ? U : never
+  } & {}
+  type union<T extends Array<any>> = {
+    [K in keyof T]: T[K] extends Type<infer U>
+      ? U
+      : T[K] extends new (...args: Array<any>) => infer U
+      ? obj<U>
+      : never
+  }[number]
+  type create<T> = T extends object
+    ? {
+        [K in keyof T as undefined extends T[K] ? K : never]?: create<T[K]>
+      } & {
+        [K in keyof T as undefined extends T[K] ? never : K]: create<T[K]>
+      }
+    : T
+  export type Create<T> = create<T>
+  export type Object<T> = obj<T>
+  export type Union<T extends Array<any>> = union<T>
+}
+
+interface Gen {
+  (path: string): string
 }
 
 export interface Type<T> {
   (value: any): T
 }
 
-export namespace Type {
-  export type New<T> = T extends object
-    ? {
-        [K in keyof T as undefined extends T[K] ? K : never]?: New<T[K]>
-      } & {
-        [K in keyof T as undefined extends T[K] ? never : K]: New<T[K]>
-      }
-    : T
-}
+export let compile = <T>(type: Type<T>) => ({
+  check: new Function(arg, `return ${type.gen(arg)}`) as (
+    value: any
+  ) => value is T
+})
 
 export class Type<T> {
   declare infer: T
   declare validate: Validator<T>
+  declare gen: Gen
 
-  narrow = <E extends T>(): Type<E> => this as any
+  narrow<E extends T>(): Type<E> {
+    return this as any
+  }
 
-  new(value: Type.New<T>): T {
+  new(value: Type.Create<T>): T {
     return value as T
   }
 
-  is(input: unknown): input is T {
-    init()
-    return this.validate(input)
+  check(input: unknown): input is T {
+    ctx = new Context()
+    return this.validate(input, ctx)
   }
 
   assert(input: unknown): asserts input is T {
-    if (!this.is(input)) throw new TypeError(err())
+    if (!this.check(input)) throw new TypeError(ctx.err())
   }
 
-  and<E>(validate: Validator<E>): Type<T & E> {
+  and<E>(that: Type<E>): Type<T & E> {
     return type(
-      (value): value is T & E => this.validate(value) && validate(value)
+      (value): value is T & E =>
+        this.validate(value, ctx) && that.validate(value, ctx),
+      path => `${this.gen(path)} && ${that.gen(path)}`
     )
   }
 
-  or<E>(validate: Validator<E>): Type<T | E> {
+  or<E>(that: Type<E>): Type<T | E> {
     return type(
-      (value): value is T | E => this.validate(value) || validate(value)
+      (value): value is T | E =>
+        this.validate(value, ctx) || that.validate(value, ctx),
+      path => `(${this.gen(path)} || ${that.gen(path)})`
     )
   }
 
@@ -80,146 +115,194 @@ export class Type<T> {
   }
 }
 
-export function type<T>(validate: Validator<T>): Type<T> {
-  let inst: any = (value: any) => {
-    inst.assert(value)
-    return value
-  }
-  inst.validate = validate
-  return setPrototypeOf(inst, Type.prototype)
+let noGen = () => {
+  throw new Error(`This type cannot be generated`)
+}
+export let type = <T>(validate: Validator<T>, gen: Gen = noGen): Type<T> => {
+  const inst: Type<T> = assign(
+    setPrototypeOf((value: any): T => {
+      inst.assert(value)
+      return value
+    }, Type.prototype),
+    {validate, gen}
+  )
+  return inst
 }
 
 export let literal = <
   T extends null | undefined | string | number | boolean | symbol
 >(
-  value: T
-) => type<T>((v): v is T => (expect(value, v), v === value))
+  literal: T
+) =>
+  type<T>(
+    (value): value is T => (ctx.expect(literal, value), literal === value),
+    path => `${path} === ${stringify(literal)}`
+  )
 
-export let nullable = <T>(inner: Type<T>) => literal(null).or(inner.validate)
-export let optional = <T>(inner: Type<T>) =>
-  literal(undefined).or(inner.validate)
+export let nullable = <T>(inner: Type<T>) => literal(null).or(inner)
+export let optional = <T>(inner: Type<T>) => literal(undefined).or(inner)
 
 let primitive = <T>(primitive: string) =>
   type(
     (value): value is T => (
-      expect(primitive, value), typeof value === primitive
-    )
+      ctx.expect(primitive, value), typeof value === primitive
+    ),
+    path => `typeof ${path} === '${primitive}'`
   )
 
 export let instance = <T>(constructor: new (...args: any[]) => T) =>
   type(
-    (value): value is T => (
-      expect(constructor.name, value), value instanceof constructor
-    )
+    (value, ctx): value is T => (
+      ctx.expect(constructor.name, value), value instanceof constructor
+    ),
+    path => `${path} instanceof ${constructor.name}`
   )
 
 export let string = primitive<string>('string')
-export let number = primitive<number>('number')
+export let number = primitive<number>('number').and(
+  type(
+    (value): value is number => !isNaN(value),
+    path => `!isNaN(${path})`
+  )
+)
 export let bigint = primitive<bigint>('bigint')
 export let boolean = primitive<boolean>('boolean')
 export let symbol = primitive<symbol>('symbol')
-export let date = instance<Date>(Date).and(
-  (v): v is Date => !isNaN(v.getTime())
+export let any = type(
+  (value): value is any => true,
+  () => `!0`
 )
-export let any = type((value): value is any => true)
-export let func = instance<Function>(Function)
-let obj = instance<Object>(Object)
+export let date = instance(Date).and(
+  type(
+    (value): value is Date => !isNaN(value.getTime()),
+    path => `!isNaN(${path}.getTime())`
+  )
+)
+
+let isFunction = instance<Function>(Function)
+let isObject = type(
+  (value): value is object => typeof value === 'object' && value != null,
+  path => `typeof ${path} === 'object' && ${path} !== null`
+)
+let isArray = type(
+  (value): value is any[] => Array.isArray(value),
+  path => `Array.isArray(${path})`
+)
 
 export let tuple = <T extends Array<Type<any>>>(...types: T) =>
-  instance(Array).and(
-    (
-      value
-    ): value is {
-      [K in keyof T]: T[K] extends Type<infer U> ? U : never
-    } => {
-      if (value.length !== types.length) return false
-      for (let [i, type] of types.entries()) {
-        index(i)
-        if (!type.validate(value[i])) return false
-        back()
-      }
-      return true
-    }
+  isArray.and(
+    type(
+      (
+        value
+      ): value is {
+        [K in keyof T]: T[K] extends Type<infer U> ? U : never
+      } => {
+        if (value.length !== types.length) return false
+        for (let [i, type] of types.entries()) {
+          ctx.index(i)
+          if (!type.validate(value[i], ctx)) return false
+          ctx.back()
+        }
+        return true
+      },
+      path =>
+        `${path}.length === ${types.length} && ${types
+          .map((type, i) => type.gen(`${path}[${i}]`))
+          .join(' && ')}`
+    )
   )
 
 export let record = <T>(inner: Type<T>): Type<Record<string, T>> =>
-  obj.and((value): value is Record<string, T> => {
-    for (let [key, item] of entries(value)) {
-      at(key)
-      if (!inner.validate(item)) return false
-      back()
-    }
-    return true
-  })
+  isObject.and(
+    type(
+      (value): value is Record<string, T> => {
+        for (let [key, item] of entries(value)) {
+          ctx.at(key)
+          if (!inner.validate(item, ctx)) return false
+          ctx.back()
+        }
+        return true
+      },
+      path => `Object.values(${path}).every(${arg} => ${inner.gen(arg)})`
+    )
+  )
 
 let def = Symbol()
-export type obj<T> = {
-  [K in keyof T]: T[K] extends Type<infer U> ? U : never
-} & {}
+
 export let object = <T extends object>(
   definition: T | (new (...args: Array<any>) => T)
-): Type<obj<T>> =>
-  obj.and((value): value is obj<T> => {
-    let inst: any = definition
-    if (func.is(inst)) inst = inst[def] || (inst[def] = new inst())
-    for (let key in inst) {
-      at(key)
-      if (!(inst[key] as Type<any>).validate(value[key])) return false
-      back()
-    }
-    return true
-  })
+): Type<Type.Object<T>> => {
+  let inst: any = definition
+  return isObject.and(
+    type(
+      (value): value is Type.Object<T> => {
+        if (isFunction.check(inst)) inst = inst[def] || (inst[def] = new inst())
+        for (let key in inst) {
+          ctx.at(key)
+          if (!(inst[key] as Type<any>).validate(value[key], ctx)) return false
+          ctx.back()
+        }
+        return true
+      },
+      path => {
+        const types = keys(inst).map(key => [key, inst[key]])
+        return types
+          .map(([key, inner]) => inner.gen(`${path}.${key}`))
+          .join(' && ')
+      }
+    )
+  )
+}
 
-export type union<T extends Array<any>> = {
-  [K in keyof T]: T[K] extends Type<infer U>
-    ? U
-    : T[K] extends new (...args: Array<any>) => infer U
-    ? obj<U>
-    : never
-}[number]
 export let union = <T extends Array<any>>(...types: T) => {
   let definitions = types.map(type =>
     type instanceof Type ? type : object(type)
   )
-  return type((value): value is union<T> => {
-    let current = path
-    for (let type of definitions) {
-      path = current
-      if (type.validate(value)) return true
-    }
-    return false
-  })
+  return type(
+    (value): value is Type.Union<T> => {
+      let current = ctx.path
+      for (let type of definitions) {
+        ctx.path = current
+        if (type.validate(value, ctx)) return true
+      }
+      return false
+    },
+    path => `(${definitions.map(type => `${type.gen(path)}`).join(' || ')})`
+  )
 }
 
 export let array = <T>(inner: Type<T>) =>
-  instance(Array).and((value): value is Array<T> => {
-    for (let [i, item] of value.entries()) {
-      index(i)
-      if (!inner.validate(item)) return false
-      back()
-    }
-    return true
-  })
-
-export let enums = <T extends Record<string, any>>(types: T) =>
-  type(
-    (value): value is keyof T => (
-      expect(keys(types).join(' | '), value), (value as any) in types
+  isArray.and(
+    type(
+      (value: Array<any>, ctx): value is Array<T> =>
+        value.every(item => inner.validate(item, ctx)),
+      path => `${path}.every(${arg} => ${inner.gen(arg)})`
     )
   )
 
-export let lazy = <T>(
-  fn: () => Type<T>,
-  inst: Validator<T> | undefined = undefined
-) =>
-  type((value): value is T =>
-    inst ? inst(value) : (inst = fn().validate)(value)
+export let enums = <T extends Record<string, any>>(types: T) => {
+  const desc = keys(types).join(' | ')
+  return type(
+    (value): value is keyof T => (
+      ctx.expect(desc, value), (value as any) in types
+    ),
+    path => `${path} in ${stringify(types)}`
   )
+}
+
+export let lazy = <T>(fn: () => Type<T>) => {
+  let inst: Validator<T> | undefined = undefined
+  return type(
+    (value): value is T =>
+      inst ? inst(value, ctx) : (inst = fn().validate)(value, ctx),
+    path => fn().gen(path)
+  )
+}
 
 export function assert<T>(value: unknown, type: Type<T>): asserts value is T {
   type.assert(value)
 }
 
 export function is<T>(value: unknown, type: Type<T>): value is T {
-  return type.is(value)
+  return type.check(value)
 }

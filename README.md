@@ -2,10 +2,12 @@
 
 Check types at runtime
 
-- Small (<1kb): 1/4 of superstruct, 1/15 of zod
+- Small: 1/4 of superstruct, 1/15 of zod
 - Support recursive type declarations
 - Descriptive error messages
 - Full TypeScript support
+- JIT compilation for fast validation checks
+- Only loose assertions: does not warn on extra keys
 
 <pre>npm install <a href="https://www.npmjs.com/package/cito">cito</a></pre>
 
@@ -47,6 +49,8 @@ const post = Post(data)
 Object types can be declared using a class, which enables you to declare
 recursive types with full type inference without having to resort to manual type
 definition.
+
+> _Note:_ recursive types cannot be JIT compiled
 
 ```ts
 import {any, object} from 'cito'
@@ -90,6 +94,7 @@ function enums<T>(types: T): Type<keyof T>
 function lazy<T>(fn: () => Type<T>): Type<T>
 function assert<T>(value: unknown, type: Type<T>): asserts value is T
 function is<T>(value: unknown, type: Type<T>): value is T
+function compile<T>(type: T): {check: (value) => value is T}
 ```
 
 A Type has the following api:
@@ -149,14 +154,21 @@ Making the comparison with superstruct and zod:
 ```ts
 benchmark        time (avg)             (min … max)       p75       p99      p995
 --------------------------------------------------- -----------------------------
-zod           70.27 µs/iter      (57.7 µs … 776 µs)   66.7 µs  165.2 µs  190.7 µs
-superstruct   263.4 µs/iter   (219.1 µs … 853.1 µs)  254.1 µs  524.6 µs  610.9 µs
-cito          28.34 µs/iter    (26.2 µs … 313.8 µs)   28.1 µs   44.7 µs   61.9 µs
+zod           68.25 µs/iter     (59.4 µs … 1.19 ms)   66.5 µs  173.3 µs  203.6 µs
+superstruct  252.25 µs/iter   (217.9 µs … 779.4 µs)  239.4 µs  513.5 µs  548.3 µs
+cito           21.1 µs/iter    (19.4 µs … 283.9 µs)   20.2 µs   33.8 µs   44.3 µs
 
 summary for validate
   cito
-   2.48x faster than zod
-   9.3x faster than superstruct
+   3.23x faster than zod
+   11.96x faster than superstruct
+
+cito jit     381.57 ns/iter (349.56 ns … 723.29 ns) 378.48 ns 720.73 ns 723.29 ns
+typebox jit  767.31 ns/iter   (726.39 ns … 1.11 µs) 768.16 ns   1.11 µs   1.11 µs
+
+summary for validate jit
+  cito jit
+   2.01x faster than typebox jit
 ```
 
 > _The data used in the benchmarks is from SpaceX's GraphQL API._
