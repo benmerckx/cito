@@ -59,11 +59,12 @@ over plain objects:
   const WithOptional = object(
     class {
       required = string
-      notRequired? = string.optional
+      present = string.optional
+      optional? = string.optional
     }
   )
   type WithOptional = typeof WithOptional.infer
-  //   ^? {required: string, notRequired?: string | undefined}
+  //   ^? {required: string, present: string | undefined, optional?: string | undefined}
   ```
 
 - **Recursive types**
