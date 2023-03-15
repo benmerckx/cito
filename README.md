@@ -44,29 +44,50 @@ if (is(data, Post)) {
 const post = Post(data)
 ```
 
-## Recursive types
+## Defining objects using a class
 
-Object types can be declared using a class, which enables you to declare
-recursive types with full type inference without having to resort to manual type
-definition.
+Object types can be declared using a class, which has the following advantages
+over plain objects:
 
-> _Note:_ recursive types cannot be JIT compiled
+- **Optional properties**
 
-```ts
-import {any, object} from 'cito'
-type Node = typeof Node.infer
-const Node = object(
-  class Node {
-    next = object(Node)
-    prev = object(Node)
-    data = any
-  }
-)
-type List = typeof List.infer
-const List = object({
-  head: Node.optional
-})
-```
+  It is possible to mark properties as optional which will be reflected in the
+  inferred type:
+
+  ```ts
+  import {object, string} from 'cito'
+  const WithOptional = object(
+    class {
+      required = string
+      notRequired? = string.optional
+    }
+  )
+  type WithOptional = typeof WithOptional.infer
+  //   ^? {required: string, notRequired?: string | undefined}
+  ```
+
+- **Recursive types**
+
+  Declare recursive types with full type inference without having to resort to
+  manual type definition.
+
+  > _Note:_ recursive types cannot be JIT compiled
+
+  ```ts
+  import {any, object} from 'cito'
+  type Node = typeof Node.infer
+  const Node = object(
+    class Node {
+      next = object(Node)
+      prev = object(Node)
+      data = any
+    }
+  )
+  type List = typeof List.infer
+  const List = object({
+    head: Node.optional
+  })
+  ```
 
 ## Api
 

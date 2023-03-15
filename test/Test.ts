@@ -172,8 +172,8 @@ test('recursive', () => {
   type Node = typeof Node.infer
   const Node = type.object(
     class Node {
-      next = type.object(Node).optional
-      prev = type.object(Node).optional
+      next? = type.object(Node).optional
+      prev? = type.object(Node).optional
       data = type.string
     }
   )

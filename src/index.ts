@@ -33,7 +33,7 @@ export interface Validator<T> {
 
 export namespace Type {
   type obj<T> = {
-    [K in keyof T]: T[K] extends Type<infer U> ? U : never
+    [K in keyof T]: T[K] extends Type<infer U> | undefined ? U : never
   } & {}
   type union<T extends Array<any>> = {
     [K in keyof T]: T[K] extends Type<infer U>
@@ -42,14 +42,6 @@ export namespace Type {
       ? obj<U>
       : never
   }[number]
-  type create<T> = T extends object
-    ? {
-        [K in keyof T as undefined extends T[K] ? K : never]?: create<T[K]>
-      } & {
-        [K in keyof T as undefined extends T[K] ? never : K]: create<T[K]>
-      }
-    : T
-  export type Create<T> = create<T>
   export type Object<T> = obj<T>
   export type Union<T extends Array<any>> = union<T>
 }
@@ -77,7 +69,7 @@ export class Type<T> {
     return this as any
   }
 
-  new(value: Type.Create<T>): T {
+  new(value: T): T {
     return value as T
   }
 
@@ -226,9 +218,6 @@ export let record = <T>(inner: Type<T>): Type<Record<string, T>> =>
       path => `Object.values(${path}).every(${arg} => ${inner.gen(arg)})`
     )
   )
-
-let def = Symbol()
-
 export let object = <T extends object>(
   definition: T | (new (...args: Array<any>) => T)
 ): Type<Type.Object<T>> => {
@@ -236,7 +225,7 @@ export let object = <T extends object>(
   return isObject.and(
     type(
       (value): value is Type.Object<T> => {
-        if (isFunction.check(inst)) inst = inst[def] || (inst[def] = new inst())
+        if (isFunction.check(inst)) inst = new inst()
         for (let key in inst) {
           ctx.at(key)
           if (!(inst[key] as Type<any>).validate(value[key], ctx)) return false
@@ -245,6 +234,7 @@ export let object = <T extends object>(
         return true
       },
       path => {
+        if (isFunction.check(inst)) inst = new inst()
         const types = keys(inst).map(key => [key, inst[key]])
         return types
           .map(([key, inner]) => inner.gen(`${path}.${key}`))
