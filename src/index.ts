@@ -261,7 +261,7 @@ export let union = <T extends Array<any>>(...types: T) => {
   )
 }
 
-export let array = <T>(inner: Type<T>) =>
+export let array = <T>(inner: Type<T>): Type<Array<T>> =>
   isArray.and(
     type(
       (value: Array<any>, ctx): value is Array<T> =>
