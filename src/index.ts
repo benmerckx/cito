@@ -252,9 +252,9 @@ export let union = <T extends Array<any>>(...types: T) => {
   )
   return type(
     (value): value is Type.Union<T> => {
-      let current = ctx.path
+      let current = ctx.path.length
       for (let type of definitions) {
-        ctx.path = current
+        ctx.path.splice(current, Infinity)
         if (type.validate(value, ctx)) return true
       }
       return false
