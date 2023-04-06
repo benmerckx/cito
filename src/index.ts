@@ -15,8 +15,8 @@ class Context {
     this.path.pop()
   }
   expect(e: any, v: any) {
-    this.value = v
     this.expected = e
+    this.value = v
   }
   err() {
     let at = this.path.length ? `@ ${this.path.join('')} ` : ''
@@ -171,13 +171,15 @@ export let date = instance(Date).and(
   )
 )
 
-let isFunction = instance<Function>(Function)
+let isFunction = (f: any) => typeof f === 'function'
 let isObject = type(
-  (value): value is object => typeof value === 'object' && value != null,
+  (value): value is object => (
+    ctx.expect('object', value), typeof value === 'object' && value != null
+  ),
   path => `typeof ${path} === 'object' && ${path} !== null`
 )
 let isArray = type(
-  (value): value is any[] => Array.isArray(value),
+  (value): value is any[] => (ctx.expect('array', value), Array.isArray(value)),
   path => `Array.isArray(${path})`
 )
 
@@ -190,9 +192,9 @@ export let tuple = <T extends Array<Type<any>>>(...types: T) =>
         [K in keyof T]: T[K] extends Type<infer U> ? U : never
       } => {
         if (value.length !== types.length) return false
-        for (let [i, type] of types.entries()) {
+        for (let i = 0; i < types.length; i++) {
           ctx.index(i)
-          if (!type.validate(value[i], ctx)) return false
+          if (!types[i].validate(value[i], ctx)) return false
           ctx.back()
         }
         return true
@@ -225,7 +227,7 @@ export let object = <T extends object>(
   return isObject.and(
     type(
       (value): value is Type.Object<T> => {
-        if (isFunction.check(inst)) inst = new inst()
+        if (isFunction(inst)) inst = new inst()
         for (let key in inst) {
           ctx.at(key)
           if (!(inst[key] as Type<any>).validate(value[key], ctx)) return false
@@ -234,7 +236,7 @@ export let object = <T extends object>(
         return true
       },
       path => {
-        if (isFunction.check(inst)) inst = new inst()
+        if (isFunction(inst)) inst = new inst()
         const types = keys(inst).map(key => [key, inst[key]])
         return types
           .map(([key, inner]) => inner.gen(`${path}.${key}`))
@@ -264,8 +266,14 @@ export let union = <T extends Array<any>>(...types: T) => {
 export let array = <T>(inner: Type<T>): Type<Array<T>> =>
   isArray.and(
     type(
-      (value: Array<any>, ctx): value is Array<T> =>
-        value.every(item => inner.validate(item, ctx)),
+      (value: Array<any>, ctx): value is Array<T> => {
+        for (let i = 0; i < value.length; i++) {
+          ctx.index(i)
+          if (!inner.validate(value[i], ctx)) return false
+          ctx.back()
+        }
+        return true
+      },
       path => `${path}.every(${arg} => ${inner.gen(arg)})`
     )
   )
