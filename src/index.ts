@@ -120,7 +120,7 @@ export let type = <T>(validate: Validator<T>, gen: Gen = noGen): Type<T> => {
   )
   return inst
 }
-
+export type Infer<T> = T extends Type<infer U> ? U : never
 export let literal = <
   T extends null | undefined | string | number | boolean | symbol
 >(

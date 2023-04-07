@@ -2,7 +2,7 @@ import {test} from 'uvu'
 import * as assert from 'uvu/assert'
 import * as type from '../src/index.js'
 
-type Expr = typeof Expr.union.infer
+type Expr = type.Infer<typeof Expr.union>
 namespace Expr {
   class none {
     type = type.literal('none')
