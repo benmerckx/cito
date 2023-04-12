@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "bench": "tsx build.ts && node bench/index.js",
+    "build": "tsc && tsx build.ts",
     "prepare": "tsc && tsx build.ts",
     "test": "tsx test/Test.ts"
   },

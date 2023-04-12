@@ -179,18 +179,22 @@ let isObject = type(
   path => `typeof ${path} === 'object' && ${path} !== null`
 )
 let isArray = type(
-  (value): value is any[] => (ctx.expect('array', value), Array.isArray(value)),
+  (value): value is unknown[] => (
+    ctx.expect('array', value), Array.isArray(value)
+  ),
   path => `Array.isArray(${path})`
 )
 
-export let tuple = <T extends Array<Type<any>>>(...types: T) =>
+export type TupleOf<T> = {
+  [K in keyof T]: T[K] extends Type<infer U> ? U : never
+}
+
+export let tuple = <T extends Array<Type<any>>>(
+  ...types: T
+): Type<TupleOf<T>> =>
   isArray.and(
     type(
-      (
-        value
-      ): value is {
-        [K in keyof T]: T[K] extends Type<infer U> ? U : never
-      } => {
+      (value): value is TupleOf<T> => {
         if (value.length !== types.length) return false
         for (let i = 0; i < types.length; i++) {
           ctx.index(i)
