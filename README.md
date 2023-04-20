@@ -117,6 +117,7 @@ function lazy<T>(fn: () => Type<T>): Type<T>
 function assert<T>(value: unknown, type: Type<T>): asserts value is T
 function is<T>(value: unknown, type: Type<T>): value is T
 function compile<T>(type: T): {check: (value) => value is T}
+type Infer<T> = T extends Type<infer U> ? U : ...
 ```
 
 A Type has the following api:
