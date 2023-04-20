@@ -4,19 +4,21 @@ import * as type from '../src/index.js'
 
 type Expr = type.Infer<typeof Expr.union>
 namespace Expr {
-  class none {
-    type = type.literal('none')
+  const types = {
+    none: class {
+      type = type.literal('none')
+    },
+    unop: class {
+      type = type.literal('unop')
+      expr = union
+    },
+    binop: class {
+      type = type.literal('binop')
+      left = union
+      right = union
+    }
   }
-  class unop {
-    type = type.literal('unop')
-    expr = union
-  }
-  class binop {
-    type = type.literal('binop')
-    left = union
-    right = union
-  }
-  export const union = type.union(none, unop, binop)
+  export const union = type.union(types.none, types.unop, types.binop)
   export const None = (): Expr => ({type: 'none'})
   export const UnOp = (expr: Expr): Expr => ({type: 'unop', expr})
   export const BinOp = (left: Expr, right: Expr): Expr => ({
