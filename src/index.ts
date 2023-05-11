@@ -131,7 +131,9 @@ export let literal = <
   literal: T
 ) =>
   type<T>(
-    (value): value is T => (ctx.expect(literal, value), literal === value),
+    (value): value is T => (
+      ctx.expect(stringify(literal), value), literal === value
+    ),
     path => `${path} === ${stringify(literal)}`
   )
 
@@ -261,9 +263,20 @@ export let union = <T extends Array<any>>(...types: T) => {
   return type(
     (value): value is Type.Union<T> => {
       let current = ctx.path.length
+      let relevancy = 0
+      let expectation: [Array<string>, string, string] | undefined = undefined
       for (let type of definitions) {
         ctx.path.splice(current, Infinity)
         if (type.validate(value, ctx)) return true
+        if (ctx.path.length >= relevancy) {
+          relevancy = ctx.path.length
+          expectation = [ctx.path.slice(), ctx.expected, ctx.value]
+        }
+      }
+      if (expectation) {
+        ctx.path = expectation[0]
+        ctx.expected = expectation[1]
+        ctx.value = expectation[2]
       }
       return false
     },

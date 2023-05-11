@@ -204,4 +204,58 @@ test('custom type', () => {
   assert.not.ok(regexJit.check('this will throw'))
 })
 
+test('error messages', () => {
+  const obj = type.object({
+    sub: type.array(
+      type.object({
+        inner: type.string
+      })
+    )
+  })
+
+  try {
+    type.assert({sub: [{inner: 123}]}, obj)
+  } catch (e) {
+    assert.is(e.message, 'Expected string @ sub[0].inner (got: 123)')
+  }
+})
+
+test('union error messages', () => {
+  const checker = type.union(
+    type.object({
+      type: type.literal('record'),
+      fields: type.array(
+        type.union(
+          type.tuple(
+            type.string,
+            type.object({
+              type: type.literal('not-relevant')
+            })
+          ),
+          type.tuple(
+            type.object({
+              type: type.literal('field')
+            })
+          )
+        )
+      )
+    }),
+    type.object({
+      type: type.literal('field')
+    })
+  )
+
+  try {
+    type.assert(
+      {
+        type: 'record',
+        fields: [['hello', {type: 'not-relevant'}], [{type: 'x'}]]
+      },
+      checker
+    )
+  } catch (e) {
+    assert.is(e.message, 'Expected "field" @ fields[1][0].type (got: "x")')
+  }
+})
+
 test.run()
