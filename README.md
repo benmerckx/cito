@@ -112,7 +112,7 @@ function record<T>(inner: Type<T>): Type<Record<string, T>>
 function object<T>(definition: T): Type<Object<T>>
 function union<T>(...types: T): Type<Union<T>>
 function array<T>(inner: Type<T>): Type<Array<T>>
-function enums<T>(types: T): Type<keyof T>
+function enums<T>(types: Record<string, T>): Type<T>
 function lazy<T>(fn: () => Type<T>): Type<T>
 function assert<T>(value: unknown, type: Type<T>): asserts value is T
 function is<T>(value: unknown, type: Type<T>): value is T
