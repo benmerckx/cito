@@ -120,10 +120,10 @@ test('unions', () => {
 })
 
 test('enums', () => {
-  assert.ok(type.enums({hello: 'world'}).check('hello'))
-  assert.not.ok(type.enums({hello: 'world'}).check('world'))
-  assert.ok(type.compile(type.enums({hello: 'world'})).check('hello'))
-  assert.not.ok(type.compile(type.enums({hello: 'world'})).check('world'))
+  assert.ok(type.enums({hello: 'world'}).check('world'))
+  assert.not.ok(type.enums({hello: 'world'}).check('hello'))
+  assert.ok(type.compile(type.enums({hello: 'world'})).check('world'))
+  assert.not.ok(type.compile(type.enums({hello: 'world'})).check('hello'))
 })
 
 test('path', () => {

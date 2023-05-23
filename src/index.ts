@@ -1,4 +1,4 @@
-let {assign, entries, keys, setPrototypeOf} = Object
+let {assign, entries, keys, values, setPrototypeOf} = Object
 let {stringify} = JSON
 
 class Context {
@@ -286,13 +286,14 @@ export let array = <T>(inner: Type<T>): Type<Array<T>> =>
     )
   )
 
-export let enums = <T extends Record<string, any>>(types: T) => {
-  const desc = keys(types).join(' | ')
+export let enums = <T>(types: Record<string, T>) => {
+  const options = values(types)
+  const desc = options.join(' | ')
   return type(
-    (value): value is keyof T => (
-      ctx.expect(desc, value), (value as any) in types
+    (value): value is T => (
+      ctx.expect(desc, value), options.includes(value as any)
     ),
-    path => `${path} in ${stringify(types)}`
+    path => `${stringify(options)}.includes(${path})`
   )
 }
 
