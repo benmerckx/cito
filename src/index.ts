@@ -20,7 +20,9 @@ class Context {
   }
   err() {
     let at = this.path.length ? `@ ${this.path.join('')} ` : ''
-    return `Expected ${this.expected} ${at}(got: ${stringify(this.value)})`
+    let type = typeof this.value
+    let suffix = type === 'undefined' ? '' : ` ${type}`
+    return `Expected ${this.expected} ${at}(got${suffix}: ${this.value})`
   }
 }
 

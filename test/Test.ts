@@ -100,10 +100,11 @@ test('records', () => {
 
 test('objects', () => {
   const obj = type.object({
-    hello: type.string,
-    world: type.number
+    hello: type.string.optional,
+    world: type.number.optional
   })
   assert.ok(obj.check({hello: 'world', world: 123}))
+  assert.not.ok(obj.check({hello: () => {}, world: 123}))
   assert.not.ok(obj.check({hello: 'world', world: 'hello'}))
   const objJit = type.compile(obj)
   assert.ok(objJit.check({hello: 'world', world: 123}))
@@ -216,7 +217,7 @@ test('error messages', () => {
   try {
     type.assert({sub: [{inner: 123}]}, obj)
   } catch (e) {
-    assert.is(e.message, 'Expected string @ sub[0].inner (got: 123)')
+    assert.is(e.message, 'Expected string @ sub[0].inner (got number: 123)')
   }
 })
 
@@ -254,7 +255,7 @@ test('union error messages', () => {
       checker
     )
   } catch (e) {
-    assert.is(e.message, 'Expected "field" @ fields[1][0].type (got: "x")')
+    assert.is(e.message, 'Expected "field" @ fields[1][0].type (got string: x)')
   }
 })
 
