@@ -32,7 +32,7 @@ class Context {
         : type === 'function'
         ? `function: ${value.name}`
         : `${type}: ${value}`
-    let prefix = errorMessage ? `${errorMessage} — ` : 'Expected'
+    let prefix = errorMessage ? `${errorMessage} — expected` : 'Expected'
     return `${prefix} ${this.expected} ${at}(got ${got})`
   }
 }
