@@ -64,7 +64,7 @@ interface Gen {
 }
 
 export interface Type<T> {
-  (value: any): T
+  (value: any, errorMessage?: string): T
 }
 
 export let compile = <T>(type: Type<T>) => ({
@@ -125,8 +125,8 @@ let noGen = () => {
 }
 export let type = <T>(validate: Validator<T>, gen: Gen = noGen): Type<T> => {
   const inst: Type<T> = assign(
-    setPrototypeOf((value: any): T => {
-      inst.assert(value)
+    setPrototypeOf((value: any, errorMessage?: string): T => {
+      inst.assert(value, errorMessage)
       return value
     }, Type.prototype),
     {validate, gen}
