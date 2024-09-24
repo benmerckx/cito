@@ -18,11 +18,22 @@ class Context {
     this.expected = e
     this.value = v
   }
-  err() {
+  err(errorMessage?: string) {
     let at = this.path.length ? `@ ${this.path.join('')} ` : ''
-    let type = typeof this.value
-    let suffix = type === 'undefined' ? '' : ` ${type}`
-    return `Expected ${this.expected} ${at}(got${suffix}: ${this.value})`
+    let value = this.value
+    let type = typeof value
+    let got =
+      type === 'undefined'
+        ? type
+        : type === 'object'
+        ? value === null
+          ? 'null'
+          : `${type}: ${value.constructor.name}`
+        : type === 'function'
+        ? `function: ${value.name}`
+        : `${type}: ${value}`
+    let prefix = errorMessage ? `${errorMessage} — ` : 'Expected'
+    return `${prefix} ${this.expected} ${at}(got ${got})`
   }
 }
 
@@ -80,8 +91,8 @@ export class Type<T> {
     return this.validate(input, ctx)
   }
 
-  assert(input: unknown): asserts input is T {
-    if (!this.check(input)) throw new TypeError(ctx.err())
+  assert(input: unknown, errorMessage?: string): asserts input is T {
+    if (!this.check(input)) throw new TypeError(ctx.err(errorMessage))
   }
 
   and<E>(that: Type<E>): Type<T & E> {
